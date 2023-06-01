@@ -34,12 +34,12 @@ jobs:
           restore-keys:
             ${{ runner.os }}-gradle-
       
-      ##gradle build
+      ## gradle build
       - name: Build with Gradle
         run: ./gradlew build -x test
 
-      ##gradle build & push to production    
-      - name: Build with Gradle
+      ## docker build & push to production    
+      - name: Docker build & push to prod
         run:
             docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_TOKEN }}
             docker buildx create --name arm64builder --use
