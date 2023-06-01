@@ -13,15 +13,15 @@ env:
 jobs:
   build:
     name: Build
-    run-on: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
-      ##jdk setting
+      ## jdk setting
       - uses: actions/checkout@v3
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
-          distribution: 'zulu' # http://github.com/actions/setup-java
+          distribution: 'zulu' # https://github.com/actions/setup-java
 
       ##gradle caching
       - name: Gradle Caching
@@ -33,7 +33,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*',**/gradle-wrapper.properties') }}
           restore-keys:
             ${{ run,os }}-gradle-
-
+      
       ##gradle build
       - name: Build with Gradle
         run: ./gradlew build -x test
@@ -46,43 +46,43 @@ jobs:
             docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t ghcr.io/reberel/backend-server:latest --push .
             docker logout
               
-deploy:
-  needs: build
-  name: Deploy
-  runs-on: [ self-hosted, deploy-backend ]
-  steps:
-    - name: Login to ghcr
-      uses: docker/login-action@v1
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-        
-    - name: Deploy to prod
-      uses: appleboy/ssh-action@v0.1.10
-      with: 
-        host: ${{ secrets.HOST_PROD }}
-        username: ec2-user
-        key: ${{ secrets.PRIVATE_KEY }}
-        script_stop: true
-        script:
-          pwd
-          ls -al
-          cd actions-runner
-          pwd
-          if [[ "$(docker ps -q --filter ancestor=mysql:8.0)" ]]; then
-            docker rm -f $(docker ps -qs --fillter ancestor=mysql:8.0)
-          fi
-          echo "pass mysql-container"
-          
-          if [[ "$(docker ps -qa --filter ancestor=backend-deploy-test/backend-deploy-test-server:latest)" ]]; then
-            docker rm -f $(docker ps -qa --filter ancestor=backend-deploy-test/backend-deploy-test-server:latest)
-          fi
-          echo "pass backend-deploy-test/backend-deploy-test-esrver:latest"
-          
-          docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_TOKEN }}
-          
-          docker pull ghcr.io/reberel/backend-server:latest
-          
-          docker image prune -f
-          docker logout
+  deploy:
+      needs: build
+      name: Deploy
+      runs-on: [ self-hosted, deploy-backend ]
+      steps:
+        - name: Login to ghcr
+          uses: docker/login-action@v1
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GHCR_TOKEN }}
+
+        - name: Deploy to prod
+          uses: appleboy/ssh-action@v0.1.10
+          with: 
+            host: ${{ secrets.HOST_PROD }}
+            username: ec2-user
+            key: ${{ secrets.PRIVATE_KEY }}
+            script_stop: true
+            script:
+              pwd
+              ls -al
+              cd actions-runner
+              pwd
+              if [[ "$(docker ps -q --filter ancestor=mysql:8.0)" ]]; then
+                docker rm -f $(docker ps -qs --fillter ancestor=mysql:8.0)
+              fi
+              echo "pass mysql-container"
+
+              if [[ "$(docker ps -qa --filter ancestor=backend-deploy-test/backend-deploy-test-server:latest)" ]]; then
+                docker rm -f $(docker ps -qa --filter ancestor=backend-deploy-test/backend-deploy-test-server:latest)
+              fi
+              echo "pass backend-deploy-test/backend-deploy-test-esrver:latest"
+
+              docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_TOKEN }}
+
+              docker pull ghcr.io/reberel/backend-server:latest
+
+              docker image prune -f
+              docker logout
