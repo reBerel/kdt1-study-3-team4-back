@@ -1,27 +1,27 @@
-name: Deploy
+name : Deploy
 on:
   push:
     branches:
       - main
-      
+     
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.actor }}/kdt1-study-3-team4-back
   VERSION: ${{ github.sha }}
   NAME: kdt1-study-3-team4-back
-  
+ 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      ## jdk setting
+      ##jdk setting
       - uses: actions/checkout@v3
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'zulu' # https://github.com/actions/setup-java
-          
+         
       ## gradle caching
       - name: Gradle Caching
         uses: actions/cache@v3
@@ -29,22 +29,25 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-
-      ## chmod gradlew
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.propertise') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+     
+      ## gradle build
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      ## gradle build
+        
       - name: Build with Gradle
-        run: ./gradlew clean build -x test
-      ### docker build & push to production
+        run: ./gradlew build -x test
+        
+      ## docker build & push to production
       - name: Docker build & push to prod
         run: |
-            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            docker login ghcr.io -u ${{ github.actor }} -p ${{secrets.GHCR_TOKEN }}
             docker buildx create --name arm64builder --use
             docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t ghcr.io/reberel/kdt1-study-3-team4-back:latest --push .
             docker logout
-      
-      
+     
   deploy:
     needs: build
     name: Deploy
@@ -56,15 +59,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
-          
-      
+       
       - name: Deploy to prod
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.HOST_PROD }}
           username: ec2-user
           key: ${{ secrets.PRIVATE_KEY }}
-          script_stop : true
+          script_stop: true
           script: |
             pwd
             ls -al
@@ -74,16 +76,13 @@ jobs:
               docker rm -f $(docker ps -qa --filter ancestor=mysql:8.0)
             fi
             echo "pass mysql-container"
-            
-            if [[ "$(docker ps -qa --filterancestor=backend-deploy-test/backend-deploy-test-server:latest)" ]]; then
-              docker rm -f $(docker pas -qa --filter ancestor=backend-deploy-test/backend-deploy-test-server:latest)
+            if [[ "$(docker ps -qa --filter ancestor=kdt1-study3-team4-back-cicd/kdt1-study3-team4-back:latest)" ]]; then
+              docker rm -f $(docker ps -qa --filter ancestor=kdt1-study3-team4-back-cicd/kdt1-study3-team4-back:latest)
             fi
-            echo "pass backend-deploy-test/backend-deploy-test-server:latest"
-            
-            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
-            
+            echo "pass kdt1-study3-team4-back-cicd/kdt1-study3-team4-back:latest"
+            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_TOKEN }}
             docker pull ghcr.io/reberel/kdt1-study-3-team4-back:latest
-            
             docker image prune -f
             docker logout
+            
             docker-compose up -d
